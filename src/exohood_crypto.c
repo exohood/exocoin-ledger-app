@@ -1,5 +1,5 @@
 // Copyright (c) Exohood Protocol 2021-2022
-/* Copyright 2017 Cedric Mesnil <cslashm@gmail.com>, Ledger SAS
+/* Copyright 2017 Cedric Mesnil, Ledger SAS
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
