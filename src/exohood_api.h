@@ -1,4 +1,4 @@
-// Copyright (c) The Exohood Project 2021-2022
+// Copyright (c) The Exohood Project 2022
 /* Copyright 2017 Cedric Mesnil, Ledger SAS
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
