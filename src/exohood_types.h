@@ -1,0 +1,410 @@
+/*
+/***
+*     ______           __                    __
+*    / _____  ______  / /_  ____  ____  ____/ /
+*   / __/ | |/_/ __ \/ __ \/ __ \/ __ \/ __  / 
+*  / /____>  </ /_/ / / / / /_/ / /_/ / /_/ /  
+* /_____/_/|_|\____/_/ /_/\____/\____/\__,_/   
+*                                             
+*   
+*    
+* https://www.exohood.com
+*
+* MIT License
+* ===========
+*
+* Copyright (c) 2020 - 2022 Exohood Protocol
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public License
+* along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+/* Copyright 2017 Cedric Mesnil, Ledger SAS
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef EXOHOOD_TYPES_H
+#define EXOHOOD_TYPES_H
+
+#include "os_io_seproxyhal.h"
+
+#if CX_APILEVEL == 8
+#define PIN_VERIFIED (!0)
+#elif CX_APILEVEL == 9 ||  CX_APILEVEL == 10
+
+#define PIN_VERIFIED BOLOS_UX_OK
+#else
+#error CX_APILEVEL not  supported
+#endif
+
+/* cannot send more that F0 bytes in CCID, why? do not know for now
+ *  So set up length to F0 minus 2 bytes for SW
+ */
+#define EXOHOOD_APDU_LENGTH                       0xFE
+
+
+/* big private DO */
+#define EXOHOOD_EXT_PRIVATE_DO_LENGTH             512
+/* will be fixed..1024 is not enougth */
+#define EXOHOOD_EXT_CARD_HOLDER_CERT_LENTH        2560
+/* random choice */
+#define EXOHOOD_EXT_CHALLENGE_LENTH               254
+
+/* --- ... --- */
+#define MAINNET_CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX             18018
+#define MAINNET_CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX  18019
+#define MAINNET_CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX          34402
+
+#define STAGENET_CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX            18018
+#define STAGENET_CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX 18019
+#define STAGENET_CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX         34402
+
+#define TESTNET_CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX             18018
+#define TESTNET_CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX  18019
+#define TESTNET_CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX          34402
+
+enum network_type {
+  #ifndef EXOHOOD_ALPHA
+  MAINNET = 0,
+  #endif
+  TESTNET = 1,
+  STAGENET = 2,
+  FAKECHAIN = 3
+};
+
+struct EXOHOOD_nv_state_s { 
+  /* magic */
+  unsigned char magic[8];
+
+  /* network */
+  unsigned char network_id;
+
+  /* key mode */
+  #define KEY_MODE_EXTERNAL 0x21
+  #define KEY_MODE_SEED     0x42
+  unsigned char key_mode;
+
+
+  /* spend key */
+  unsigned char b[32];
+  /* view key */
+  unsigned char a[32];
+
+
+  /*words*/
+  #define WORDS_MAX_LENGTH 20
+  char words[26][20];
+
+} ;
+
+typedef struct EXOHOOD_nv_state_s EXOHOOD_nv_state_t;
+
+#define EXOHOOD_IO_BUFFER_LENGTH (300)
+enum device_mode {
+  NONE,
+  TRANSACTION_CREATE_REAL,
+  TRANSACTION_CREATE_FAKE,
+  TRANSACTION_PARSE
+};
+
+#define EXPORT_VIEW_KEY  0xC001BEEF
+
+#define DISP_MAIN        0x51
+#define DISP_SUB         0x52
+#define DISP_INTEGRATED  0x53
+
+struct EXOHOOD_v_state_s {
+  unsigned char   state;
+  unsigned char   protocol;
+
+  /* ------------------------------------------ */
+  /* ---                  IO                --- */
+  /* ------------------------------------------ */
+
+  /* io state*/
+  unsigned char   io_protocol_version;
+  unsigned char   io_ins;
+  unsigned char   io_p1;
+  unsigned char   io_p2;
+  unsigned char   io_lc;
+  unsigned char   io_le;
+  unsigned short  io_length;
+  unsigned short  io_offset;
+  unsigned short  io_mark;
+  unsigned char   io_buffer[EXOHOOD_IO_BUFFER_LENGTH];
+
+
+  unsigned int    options;
+
+  /* ------------------------------------------ */
+  /* ---            State Machine           --- */
+  /* ------------------------------------------ */
+
+
+  unsigned int   sig_mode;
+  unsigned int   export_view_key;
+
+  /* ------------------------------------------ */
+  /* ---               Crypo                --- */
+  /* ------------------------------------------ */
+  unsigned char b[32];
+  unsigned char a[32];
+  unsigned char A[32];
+  unsigned char B[32];
+
+  /* SPK */
+  cx_aes_key_t spk;
+  unsigned char hmac_key[32];
+
+  /* Tx state machine */
+  struct {
+  unsigned char key_set:1;
+   unsigned int tx_in_progress: 1;
+   unsigned int tx_state: 4;
+  };
+  unsigned int   tx_output_cnt;
+
+  /* Tx key */
+  unsigned char R[32];
+  unsigned char r[32];
+
+  /* mlsag hash */
+  cx_sha3_t     keccakF;
+  cx_sha3_t     keccakH;
+  unsigned char H[32];
+  unsigned char c[32];
+
+  /* -- track tx-in/out and commitment -- */
+  cx_sha256_t   sha256_out_keys;
+  unsigned char OUTK[32];
+
+  cx_sha256_t   sha256_commitment;
+  unsigned char C[32];
+
+  unsigned int tx_ins_count;
+
+  uint64_t tx_ins_amount;
+  uint64_t tx_outs_amount;
+  unsigned int tx_fee;
+  uint64_t tx_total_amount;
+
+  unsigned char tx_prefix_hash[32];
+
+  unsigned char tx_change_idx[50];
+  unsigned int tx_outs_current_index;
+
+  unsigned char dest_Aout[32];
+  unsigned char dest_Bout[32];
+  unsigned char dest_is_subaddress;
+
+  /* ------------------------------------------ */
+  /* ---               UI/UX                --- */
+  /* ------------------------------------------ */
+
+  #ifdef UI_NANO_X
+  char            ux_wallet_public_address[160];
+  char            ux_wallet_public_short_address[5+2+5+1];
+  #endif
+
+  union {
+    struct {
+      /* menu 0: 95-chars + "<EXOHOOD: >"  + null */
+      char            ux_menu[132];
+      // address to display: 95/106-chars + null
+      char            ux_address[132];
+      // EXO to display: max pow(2,64) unit, aka 20-chars + '0' + dot + null
+      char            ux_amount[23];
+      char            ux_inputs[23];
+      // addr mode
+      unsigned char disp_addr_mode;
+      //M.m address
+      unsigned int disp_addr_M;
+      unsigned int disp_addr_m;
+      //payment id
+      char payment_id[16];
+    };
+    struct {
+      unsigned char tmp[340];
+    };
+    #ifdef UI_NANO_X
+    struct {
+      char ux_words[520];
+    };
+    #endif
+  };
+};
+typedef struct  EXOHOOD_v_state_s EXOHOOD_v_state_t;
+
+
+
+
+#define SIZEOF_TX_VSTATE   (sizeof(EXOHOOD_v_state_t) - OFFSETOF(EXOHOOD_v_state_t, state))
+
+
+#define STATE_IDLE                          0xC0
+
+/* ---  ...  --- */
+#define IO_OFFSET_END                       (unsigned int)-1
+#define IO_OFFSET_MARK                      (unsigned int)-2
+
+#define ENCRYPTED_PAYMENT_ID_TAIL            0x8d
+
+/* ---  Errors  --- */
+#define ERROR(x)                            ((x)<<16)
+
+#define ERROR_IO_OFFSET                     ERROR(1)
+#define ERROR_IO_FULL                       ERROR(2)
+
+/* ---  INS  --- */
+
+#define INS_NONE                            0x00
+#define INS_RESET                           0x02
+
+#define INS_GET_KEY                         0x20
+#define INS_DISPLAY_ADDRESS                 0x21
+#define INS_PUT_KEY                         0x22
+#define INS_GET_CHACHA8_PREKEY              0x24
+#define INS_VERIFY_KEY                      0x26
+#define INS_MANAGE_SEEDWORDS                0x28
+
+#define INS_SECRET_KEY_TO_PUBLIC_KEY        0x30
+#define INS_GEN_KEY_DERIVATION              0x32
+#define INS_DERIVATION_TO_SCALAR            0x34
+#define INS_DERIVE_PUBLIC_KEY               0x36
+#define INS_DERIVE_SECRET_KEY               0x38
+#define INS_GEN_KEY_IMAGE                   0x3A
+#define INS_SECRET_KEY_ADD                  0x3C
+#define INS_SCALAR_MULSUB                   0x3D
+#define INS_SECRET_KEY_SUB                  0x3E
+#define INS_GENERATE_KEYPAIR                0x40
+#define INS_SECRET_SCAL_MUL_KEY             0x42
+#define INS_SECRET_SCAL_MUL_BASE            0x44
+
+#define INS_DERIVE_SUBADDRESS_PUBLIC_KEY    0x46
+#define INS_GET_SUBADDRESS                  0x48
+#define INS_GET_SUBADDRESS_SPEND_PUBLIC_KEY 0x4A
+#define INS_GET_SUBADDRESS_SECRET_KEY       0x4C
+
+#define INS_OPEN_TX                         0x70
+#define INS_SET_SIGNATURE_MODE              0x72
+#define INS_GET_ADDITIONAL_KEY              0x74
+#define INS_STEALTH                         0x76
+#define INS_GEN_COMMITMENT_MASK             0x77
+#define INS_BLIND                           0x78
+#define INS_UNBLIND                         0x7A
+#define INS_GEN_TXOUT_KEYS                  0x7B
+#define INS_VALIDATE                        0x7C
+#define INS_MLSAG                           0x7E
+#define INS_CLOSE_TX                        0x80
+#define INS_PROMPT_FEE                      0x82
+#define INS_PROMPT_TX                       0x84
+
+#define INS_GET_TX_PROOF                    0xA0
+#define INS_GEN_SIGNATURE                   0xA2
+#define INS_GEN_RING_SIGNATURE              0xA4
+
+
+
+#define INS_GET_RESPONSE                    0xc0
+
+#define INS_TX_PREFIX_START                 0xD0
+#define INS_TX_PREFIX_INPUTS                0xD2
+#define INS_TX_PREFIX_OUTPUTS               0xD4
+#define INS_TX_PREFIX_OUTPUTS_SIZE          0xD6
+#define INS_TX_PREFIX_EXTRA                 0xD8
+#define INS_TX_PROMPT_FEE                   0xDA
+#define INS_TX_PROMPT_AMOUNT                0xDC
+
+#define INS_HASH_TO_SCALAR                  0xE0
+#define INS_HASH_TO_SCALAR_BATCH            0xE2
+#define INS_HASH_TO_SCALAR_INIT             0xE4
+
+/* --- OPTIONS --- */
+#define IN_OPTION_MASK                      0x000000FF
+#define OUT_OPTION_MASK                     0x0000FF00
+
+#define IN_OPTION_MORE_COMMAND              0x00000080
+
+/* ---  IO constants  --- */
+#define OFFSET_CLA                          0
+#define OFFSET_INS                          1
+#define OFFSET_P1                           2
+#define OFFSET_P2                           3
+#define OFFSET_P3                           4
+#define OFFSET_CDATA                        5
+#define OFFSET_EXT_CDATA                    7
+
+
+#define SW_OK                                0x9000
+#define SW_ALGORITHM_UNSUPPORTED             0x9484
+
+#define SW_BYTES_REMAINING_00                0x6100
+
+#define SW_WARNING_STATE_UNCHANGED           0x6200
+#define SW_STATE_TERMINATED                  0x6285
+
+#define SW_MORE_DATA_AVAILABLE               0x6310
+
+#define SW_WRONG_LENGTH                      0x6700
+
+#define SW_LOGICAL_CHANNEL_NOT_SUPPORTED     0x6881
+#define SW_SECURE_MESSAGING_NOT_SUPPORTED    0x6882
+#define SW_LAST_COMMAND_EXPECTED             0x6883
+#define SW_COMMAND_CHAINING_NOT_SUPPORTED    0x6884
+
+
+#define SW_SECURITY_LOAD_KEY                 0x6900
+#define SW_SECURITY_COMMITMENT_CONTROL       0x6911
+#define SW_SECURITY_AMOUNT_CHAIN_CONTROL     0x6912
+#define SW_SECURITY_COMMITMENT_CHAIN_CONTROL 0x6913
+#define SW_SECURITY_OUTKEYS_CHAIN_CONTROL    0x6914
+#define SW_SECURITY_MAXOUTPUT_REACHED        0x6915
+#define SW_SECURITY_TRUSTED_INPUT            0x6916
+
+#define SW_CLIENT_NOT_SUPPORTED              0x6930
+
+#define SW_SECURITY_STATUS_NOT_SATISFIED     0x6982
+#define SW_FILE_INVALID                      0x6983
+#define SW_PIN_BLOCKED                       0x6983
+#define SW_DATA_INVALID                      0x6984
+#define SW_CONDITIONS_NOT_SATISFIED          0x6985
+#define SW_COMMAND_NOT_ALLOWED               0x6986
+#define SW_APPLET_SELECT_FAILED              0x6999
+
+#define SW_WRONG_DATA                        0x6a80
+#define SW_FUNC_NOT_SUPPORTED                0x6a81
+#define SW_FILE_NOT_FOUND                    0x6a82
+#define SW_RECORD_NOT_FOUND                  0x6a83
+#define SW_FILE_FULL                         0x6a84
+#define SW_INCORRECT_P1P2                    0x6a86
+#define SW_REFERENCED_DATA_NOT_FOUND         0x6a88
+
+#define SW_WRONG_P1P2                        0x6b00
+#define SW_CORRECT_LENGTH_00                 0x6c00
+#define SW_INS_NOT_SUPPORTED                 0x6d00
+#define SW_CLA_NOT_SUPPORTED                 0x6e00
+
+#define SW_UNKNOWN                           0x6f00
+
+
+#endif
